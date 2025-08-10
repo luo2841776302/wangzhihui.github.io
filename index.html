@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>王智慧专属</title>
+    <title>王智慧专属 - 多人共享</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- 引入Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-analytics.js"></script>
+    
     <script>
         tailwind.config = {
             theme: {
@@ -50,12 +55,27 @@
             <h1 class="text-[clamp(2.5rem,8vw,5rem)] font-bold bg-gradient-to-r from-primary to-accent text-gradient text-shadow tracking-wider">
                 王智慧专属
             </h1>
-            <p class="text-gray-600 mt-4 text-lg md:text-xl">记录你的想法和愿望</p>
+            <p class="text-gray-600 mt-4 text-lg md:text-xl">大家的想法和愿望，所有人都能看见</p>
         </header>
 
         <!-- 主内容区 -->
         <main class="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-12">
             <form id="wishForm" class="space-y-6">
+                <!-- 你的昵称 -->
+                <div class="card-hover bg-gray-50 rounded-xl p-5">
+                    <label for="nickname" class="block mb-2 text-lg font-medium text-gray-700 flex items-center">
+                        <i class="fa fa-user text-neutral mr-3"></i>你的昵称
+                    </label>
+                    <input 
+                        type="text" 
+                        id="nickname" 
+                        name="nickname" 
+                        placeholder="请输入你的昵称，让大家知道是谁添加的..." 
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 input-focus transition-all"
+                        required
+                    >
+                </div>
+                
                 <!-- 想吃的东西 -->
                 <div class="card-hover bg-blue-50 rounded-xl p-5">
                     <label for="food" class="block mb-2 text-lg font-medium text-gray-700 flex items-center">
@@ -104,40 +124,40 @@
                         type="submit" 
                         class="bg-gradient-to-r from-primary to-accent text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2"
                     >
-                        <i class="fa fa-paper-plane mr-2"></i>保存我的想法
+                        <i class="fa fa-paper-plane mr-2"></i>分享我的想法
                     </button>
                 </div>
             </form>
         </main>
 
-        <!-- 数据管理按钮 -->
-        <div class="flex flex-wrap justify-center gap-4 mb-6">
-            <button id="exportBtn" class="flex items-center bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors">
-                <i class="fa fa-download mr-2"></i>导出数据
-            </button>
-            <label for="importFile" class="cursor-pointer flex items-center bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors">
-                <i class="fa fa-upload mr-2"></i>导入数据
-            </label>
-            <input type="file" id="importFile" accept=".json" class="hidden">
-            <button id="clearBtn" class="flex items-center bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors">
-                <i class="fa fa-trash mr-2"></i>清空所有数据
-            </button>
+        <!-- 加载状态 -->
+        <div id="loading" class="text-center py-8 hidden">
+            <i class="fa fa-circle-o-notch fa-spin text-primary text-2xl"></i>
+            <p class="mt-2 text-gray-600">加载中...</p>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="error" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 hidden">
+            <div class="flex items-center">
+                <i class="fa fa-exclamation-circle text-red-500 mr-2"></i>
+                <p class="text-red-700" id="errorMessage">加载失败，请稍后重试</p>
+            </div>
         </div>
 
         <!-- 历史记录区域 -->
         <section class="mb-12">
             <h2 class="text-2xl font-bold text-center mb-6 text-neutral">
-                <i class="fa fa-history text-primary mr-2"></i>历史记录
+                <i class="fa fa-comments text-primary mr-2"></i>大家的想法
             </h2>
-            <div id="historyContainer" class="space-y-4 max-h-96 overflow-y-auto p-4 bg-white rounded-2xl shadow-md">
+            <div id="historyContainer" class="space-y-4 max-h-[500px] overflow-y-auto p-4 bg-white rounded-2xl shadow-md">
                 <!-- 历史记录将通过JavaScript动态添加 -->
-                <p class="text-gray-500 text-center italic" id="emptyHistory">暂无记录</p>
+                <p class="text-gray-500 text-center italic" id="emptyHistory">暂无记录，快来添加第一条想法吧！</p>
             </div>
         </section>
 
         <!-- 页脚 -->
         <footer class="text-center text-gray-500 text-sm py-6">
-            <p>王智慧专属 &copy; 2023</p>
+            <p>王智慧专属 &copy; 2023 - 多人共享版</p>
         </footer>
     </div>
 
@@ -148,29 +168,55 @@
     </div>
 
     <script>
+        // Firebase 配置 - 使用你提供的配置信息
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1nHzAMeJdk8MqBzGxx7IppizTsfP-Fn0",
+            authDomain: "wangzhihui-cfcbe.firebaseapp.com",
+            projectId: "wangzhihui-cfcbe",
+            storageBucket: "wangzhihui-cfcbe.firebasestorage.app",
+            messagingSenderId: "227941528706",
+            appId: "1:227941528706:web:996dc50fb529a14834309b",
+            measurementId: "G-HT4HTMNCXE"
+        };
+
+        // 初始化Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
+        const analytics = firebase.analytics(app);
+
         // 页面加载完成后执行
         document.addEventListener('DOMContentLoaded', () => {
             const form = document.getElementById('wishForm');
             const historyContainer = document.getElementById('historyContainer');
             const emptyHistory = document.getElementById('emptyHistory');
             const toast = document.getElementById('toast');
-            const exportBtn = document.getElementById('exportBtn');
-            const importFile = document.getElementById('importFile');
-            const clearBtn = document.getElementById('clearBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const errorMessage = document.getElementById('errorMessage');
             
-            // 加载本地存储的历史记录
-            loadHistory();
+            // 加载数据
+            loadData();
+            
+            // 监听数据变化，实时更新
+            listenForDataChanges();
             
             // 表单提交事件
             form.addEventListener('submit', (e) => {
                 e.preventDefault();
                 
                 // 获取表单数据
+                const nickname = document.getElementById('nickname').value.trim();
                 const food = document.getElementById('food').value.trim();
                 const thing = document.getElementById('thing').value.trim();
                 const activity = document.getElementById('activity').value.trim();
                 
-                // 验证至少填写一项
+                // 验证
+                if (!nickname) {
+                    showToast('请输入你的昵称', 'error');
+                    return;
+                }
+                
+                // 验证至少填写一项内容
                 if (!food && !thing && !activity) {
                     showToast('请至少填写一项内容', 'error');
                     return;
@@ -178,138 +224,79 @@
                 
                 // 创建记录对象
                 const record = {
-                    id: Date.now(), // 使用时间戳作为唯一ID
+                    nickname,
                     food,
                     thing,
                     activity,
-                    time: new Date().toLocaleString()
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    date: new Date().toLocaleString()
                 };
                 
-                // 保存记录
+                // 保存记录到Firebase
                 saveRecord(record);
                 
                 // 显示成功提示
-                showToast('保存成功！', 'success');
+                showToast('分享成功！所有人都能看到你的想法了', 'success');
                 
-                // 重置表单
-                form.reset();
+                // 重置表单（保留昵称）
+                document.getElementById('food').value = '';
+                document.getElementById('thing').value = '';
+                document.getElementById('activity').value = '';
             });
             
-            // 导出数据
-            exportBtn.addEventListener('click', () => {
-                const records = JSON.parse(localStorage.getItem('wishes') || '[]');
-                if (records.length === 0) {
-                    showToast('没有可导出的数据', 'info');
-                    return;
-                }
-                
-                // 创建JSON文件并下载
-                const dataStr = JSON.stringify(records, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `王智慧专属记录_${new Date().toLocaleDateString()}.json`;
-                document.body.appendChild(a);
-                a.click();
-                
-                // 清理
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 0);
-                
-                showToast('数据导出成功', 'success');
-            });
-            
-            // 导入数据
-            importFile.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const importedData = JSON.parse(event.target.result);
-                        
-                        // 验证导入的数据格式
-                        if (!Array.isArray(importedData)) {
-                            throw new Error('导入的数据格式不正确');
-                        }
-                        
-                        // 合并数据（保留现有数据，添加新数据）
-                        let existingData = JSON.parse(localStorage.getItem('wishes') || '[]');
-                        // 过滤掉重复的记录（根据id）
-                        const existingIds = new Set(existingData.map(item => item.id));
-                        const newRecords = importedData.filter(item => 
-                            !existingIds.has(item.id) && item.id && item.time
-                        );
-                        
-                        // 合并并保存
-                        const mergedData = [...newRecords, ...existingData];
-                        localStorage.setItem('wishes', JSON.stringify(mergedData));
-                        
-                        // 重新加载历史记录
-                        loadHistory();
-                        showToast(`成功导入 ${newRecords.length} 条记录`, 'success');
-                    } catch (error) {
-                        showToast(`导入失败: ${error.message}`, 'error');
-                    }
-                };
-                reader.readAsText(file);
-                
-                // 重置文件输入，允许重复选择同一文件
-                importFile.value = '';
-            });
-            
-            // 清空数据
-            clearBtn.addEventListener('click', () => {
-                const records = JSON.parse(localStorage.getItem('wishes') || '[]');
-                if (records.length === 0) {
-                    showToast('没有可清空的数据', 'info');
-                    return;
-                }
-                
-                if (confirm('确定要清空所有记录吗？此操作不可恢复。')) {
-                    localStorage.removeItem('wishes');
-                    loadHistory();
-                    showToast('所有数据已清空', 'success');
-                }
-            });
-            
-            // 保存记录到本地存储
+            // 保存记录到Firebase
             function saveRecord(record) {
-                // 从本地存储获取现有记录
-                let records = JSON.parse(localStorage.getItem('wishes') || '[]');
-                
-                // 添加新记录
-                records.unshift(record); // 添加到数组开头
-                
-                // 限制最多保存50条记录
-                if (records.length > 50) {
-                    records = records.slice(0, 50);
-                }
-                
-                // 保存回本地存储
-                localStorage.setItem('wishes', JSON.stringify(records));
-                
-                // 重新加载历史记录
-                loadHistory();
+                db.collection("wishes").add(record)
+                    .then(() => {
+                        console.log("记录已成功添加到数据库");
+                    })
+                    .catch((error) => {
+                        console.error("添加记录时出错：", error);
+                        showToast(`保存失败: ${error.message}`, 'error');
+                    });
             }
             
-            // 加载历史记录
-            function loadHistory() {
-                // 清空现有内容（除了emptyHistory提示）
-                while (historyContainer.children.length > 1) {
-                    historyContainer.removeChild(historyContainer.lastChild);
-                }
+            // 加载数据
+            function loadData() {
+                showLoading();
+                hideError();
                 
-                // 从本地存储获取记录
-                const records = JSON.parse(localStorage.getItem('wishes') || '[]');
+                db.collection("wishes")
+                  .orderBy("timestamp", "desc")
+                  .limit(50)
+                  .get()
+                  .then((querySnapshot) => {
+                      hideLoading();
+                      displayRecords(querySnapshot.docs);
+                  })
+                  .catch((error) => {
+                      hideLoading();
+                      showError(`加载数据失败: ${error.message}`);
+                      console.error("获取数据时出错：", error);
+                  });
+            }
+            
+            // 监听数据变化
+            function listenForDataChanges() {
+                db.collection("wishes")
+                  .orderBy("timestamp", "desc")
+                  .limit(50)
+                  .onSnapshot((querySnapshot) => {
+                      displayRecords(querySnapshot.docs);
+                  }, (error) => {
+                      showError(`实时更新失败: ${error.message}`);
+                      console.error("监听数据变化时出错：", error);
+                  });
+            }
+            
+            // 显示记录
+            function displayRecords(docs) {
+                // 清空现有内容
+                historyContainer.innerHTML = '';
+                historyContainer.appendChild(emptyHistory);
                 
                 // 检查是否有记录
-                if (records.length === 0) {
+                if (docs.length === 0) {
                     emptyHistory.style.display = 'block';
                     return;
                 }
@@ -318,7 +305,9 @@
                 emptyHistory.style.display = 'none';
                 
                 // 添加记录到页面
-                records.forEach(record => {
+                docs.forEach(doc => {
+                    const record = doc.data();
+                    record.id = doc.id;
                     const recordElement = createRecordElement(record);
                     historyContainer.appendChild(recordElement);
                 });
@@ -330,7 +319,12 @@
                 div.className = 'border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow bg-gray-50';
                 div.setAttribute('data-id', record.id);
                 
-                let content = `<div class="text-xs text-gray-500 mb-2">${record.time}</div>`;
+                let content = `
+                    <div class="flex justify-between items-start mb-2">
+                        <div class="font-semibold text-neutral">${record.nickname}</div>
+                        <div class="text-xs text-gray-500">${record.date || '刚刚'}</div>
+                    </div>
+                `;
                 
                 if (record.food) {
                     content += `
@@ -359,31 +353,8 @@
                     `;
                 }
                 
-                // 添加删除按钮
-                content += `
-                    <button class="delete-btn text-gray-400 hover:text-red-500 text-xs mt-2" data-id="${record.id}">
-                        <i class="fa fa-trash-o"></i> 删除
-                    </button>
-                `;
-                
                 div.innerHTML = content;
-                
-                // 添加删除事件
-                div.querySelector('.delete-btn').addEventListener('click', (e) => {
-                    const id = parseInt(e.target.closest('.delete-btn').dataset.id);
-                    deleteRecord(id);
-                });
-                
                 return div;
-            }
-            
-            // 删除记录
-            function deleteRecord(id) {
-                let records = JSON.parse(localStorage.getItem('wishes') || '[]');
-                records = records.filter(record => record.id !== id);
-                localStorage.setItem('wishes', JSON.stringify(records));
-                loadHistory();
-                showToast('记录已删除', 'info');
             }
             
             // 显示提示
@@ -424,6 +395,25 @@
                     toast.classList.remove('translate-y-0', 'opacity-100');
                     toast.classList.add('translate-y-20', 'opacity-0');
                 }, 3000);
+            }
+            
+            // 加载状态控制
+            function showLoading() {
+                loading.classList.remove('hidden');
+            }
+            
+            function hideLoading() {
+                loading.classList.add('hidden');
+            }
+            
+            // 错误提示控制
+            function showError(message) {
+                errorMessage.textContent = message;
+                error.classList.remove('hidden');
+            }
+            
+            function hideError() {
+                error.classList.add('hidden');
             }
         });
     </script>
